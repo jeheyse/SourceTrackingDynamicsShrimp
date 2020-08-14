@@ -1,0 +1,257 @@
+---
+title: <font size = "6">Logfile MOTHUR</font>
+output:
+  html_document:
+    code_folding: show
+    highlight: haddock
+    keep_md: yes
+    theme: flatly
+    toc: yes
+    number_sections: true
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+      toc_depth: 4
+editor_options:
+  chunk_output_type: console
+---
+
+<style>
+#TOC {
+  margin: 15px 0px 15px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+.toc-content {
+  padding-left: 20px;
+  padding-right: 20px;
+}
+div.tocify {
+  width: 20%;
+  max-width: 700px;
+  max-height: 85%;
+}
+  body {text-align: justify}
+  .main-container {max-width: 2100px !important;}
+  code.r{ font-size: 11px; }
+  pre{ font-size: 15px }
+  pre code, pre, code {
+  white-space: pre !important;
+  overflow-x: scroll !important;
+  word-break: keep-all !important;
+  word-wrap: initial !important;
+}
+</style>
+
+
+
+
+All data is stored in a folder called RawData inside Data/Illumina/.
+
+
+```r
+# In the 'Illumina'-folder. Make a folder called 'fastq'.
+mkdir fastq
+# Copy data to the 'fastq'-folder.
+find ./ -iname *fastq.gz | xargs -I{} cp {} ./fastq
+# Navigate to the 'fastq'-folder.
+cd fastq
+# Unzip all files.
+gunzip *
+
+# Make symbolic links to the SILVA databases.
+ln -s /Taxonomies/silva.nr_v132.align
+ln -s /Taxonomies/silva.nr_v132.tax
+ln -s /Taxonomies/silva.seed_v123.pcr341f785rinside.align
+
+# Remove dashes from the files and replace them with underscores.
+ls *.fastq | xargs -I {} rename 's/-/_/g' {}
+```
+
+
+```r
+# Go back to the 'Illumina'-folder.
+cd ..
+# Open MOTHUR by typing 'mothur' in the command line.
+mothur
+# Make stabilityfile (in Mothur, in the folder 1 level above fastq).
+make.file(inputdir = fastq)
+# Close MOTHUR with CTRL+C
+CTRL+C
+```
+
+
+```r
+# Make an oligos-file (tab-delimited) with the primers that were used for sequencing. Call it 'bc.oligos'. 
+primer CCTACGGGNGGCWGCAG GACTACHVGGGTATCTAATCC	V3V4
+
+# Upload the 'bc.oligos'-file into the fastq folder
+```
+
+
+```r
+# Navigate to the 'fastq'-folder.
+cd fastq
+# Open MOTHUR by typing 'mothur' in the command line.
+mothur
+# Set a seed to make sure the code is reproducible.
+set.seed(seed = 458)
+# Set the number of cores.
+set.current(processors = 20)
+# Make contigs from the forward and reverse sequences. The primmer in the 'bc.oligos'-file will be clipped from the sequences.
+make.contigs(file = stability.files, oligos = bc.oligos)
+# Make a summary of the contigs.
+summary.seqs(fasta = stability.trim.contigs.fasta)
+
+                          Start   End     NBases  Ambigs  Polymer NumSeqs
+          Minimum:        1       50      50      0       3       1
+          2.5%-tile:      1       402     402     0       4       117215
+          25%-tile:       1       402     402     0       4       1172145
+          Median:         1       422     422     0       5       2344290
+          75%-tile:       1       427     427     0       5       3516435
+          97.5%-tile:     1       428     428     6       6       4571365
+          Maximum:        1       564     564     77      271     4688579
+          Mean:   1       415     415     0       4
+          # of Seqs:      4688579
+
+# Remove contigs with ambiguous bases and with a length below 402 of above 428 basepairs.
+screen.seqs(fasta = stability.trim.contigs.fasta, group = stability.contigs.groups, maxambig = 0, minlength = 402, maxlength = 428)
+# Make a summary of the contigs.
+summary.seqs(fasta = stability.trim.contigs.good.fasta)
+
+                          Start   End     NBases  Ambigs  Polymer NumSeqs
+          Minimum:        1       402     402     0       3       1
+          2.5%-tile:      1       402     402     0       4       100316
+          25%-tile:       1       402     402     0       4       1003160
+          Median:         1       422     422     0       5       2006320
+          75%-tile:       1       427     427     0       5       3009480
+          97.5%-tile:     1       428     428     0       6       3912324
+          Maximum:        1       428     428     0       27      4012639
+          Mean:   1       416     416     0       4
+          # of Seqs:      4012639
+
+# Get the unique sequences from the contigs database.
+unique.seqs(fasta = stability.trim.contigs.good.fasta)
+# Count for each of the unique sequences how frequently it occurs.
+count.seqs(name = stability.trim.contigs.good.names, group = stability.contigs.good.groups)
+# Align the sequences to the trimmed SILVA database.
+align.seqs(fasta = stability.trim.contigs.good.unique.fasta, reference = silva.seed_v123.pcr341f785rinside.align, flip = T)
+# Make a summary of the contigs.
+summary.seqs(fasta = stability.trim.contigs.good.unique.align, count = stability.trim.contigs.good.count_table)
+
+                          Start   End     NBases  Ambigs  Polymer NumSeqs
+          Minimum:        1       2       1       0       1       1
+          2.5%-tile:      2       17012   401     0       4       100316
+          25%-tile:       2       17012   401     0       4       1003160
+          Median:         2       17012   421     0       5       2006320
+          75%-tile:       2       17012   426     0       5       3009480
+          97.5%-tile:     2       17012   426     0       6       3912324
+          Maximum:        16155   17012   428     0       27      4012639
+          Mean:   15      17011   414     0       4
+          # of unique seqs:       727354
+          total # of seqs:        4012639
+
+# Remove contigs with more than 12 homopolymers ambiguous bases and with a start below 2 or and end above 17012 basepairs.
+screen.seqs(fasta = stability.trim.contigs.good.unique.align, count = stability.trim.contigs.good.count_table, summary = stability.trim.contigs.good.unique.summary, start = 2, end = 17012, maxhomop = 12)
+# Make a summary of the contigs.
+summary.seqs(fasta = stability.trim.contigs.good.unique.good.align, count = stability.trim.contigs.good.good.count_table)
+
+                          Start   End     NBases  Ambigs  Polymer NumSeqs
+          Minimum:        1       17012   382     0       3       1
+          2.5%-tile:      2       17012   401     0       4       99314
+          25%-tile:       2       17012   401     0       4       993136
+          Median:         2       17012   421     0       5       1986271
+          75%-tile:       2       17012   426     0       5       2979406
+          97.5%-tile:     2       17012   427     0       6       3873228
+          Maximum:        2       17012   428     0       12      3972541
+          Mean:   1       17012   415     0       4
+          # of unique seqs:       706108
+          total # of seqs:        3972541
+
+# Remove columns that contain '.' at every position, these are not informative.
+filter.seqs(fasta = stability.trim.contigs.good.unique.good.align, vertical = T, trump = .)
+# Make a summary of the contigs.
+summary.seqs(fasta = stability.trim.contigs.good.unique.good.filter.fasta, count = stability.trim.contigs.good.good.count_table)
+
+                          Start   End     NBases  Ambigs  Polymer NumSeqs
+          Minimum:        1       1002    382     0       3       1
+          2.5%-tile:      1       1002    401     0       4       99314
+          25%-tile:       1       1002    401     0       4       993136
+          Median:         1       1002    421     0       5       1986271
+          75%-tile:       1       1002    426     0       5       2979406
+          97.5%-tile:     1       1002    427     0       6       3873228
+          Maximum:        1       1002    428     0       12      3972541
+          Mean:   1       1002    415     0       4
+          # of unique seqs:       706108
+          total # of seqs:        3972541
+
+# Get the unique sequences from the contigs database.
+unique.seqs(fasta = stability.trim.contigs.good.unique.good.filter.fasta, count = stability.trim.contigs.good.good.count_table)
+# Precluster
+pre.cluster(fasta = stability.trim.contigs.good.unique.good.filter.unique.fasta, count = stability.trim.contigs.good.unique.good.filter.count_table, diffs = 4)
+# Make a summary of the contigs.
+summary.seqs(fasta = stability.trim.contigs.good.unique.good.filter.unique.precluster.fasta, count = stability.trim.contigs.good.unique.good.filter.unique.precluster.count_table)
+
+                          Start   End     NBases  Ambigs  Polymer NumSeqs
+          Minimum:        1       1002    382     0       3       1
+          2.5%-tile:      1       1002    401     0       4       99314
+          25%-tile:       1       1002    401     0       4       993136
+          Median:         1       1002    421     0       5       1986271
+          75%-tile:       1       1002    426     0       5       2979406
+          97.5%-tile:     1       1002    427     0       6       3873228
+          Maximum:        1       1002    428     0       12      3972541
+          Mean:   1       1002    415     0       4
+          # of unique seqs:       262247
+          total # of seqs:        3972541
+
+# Detect chimeric sequences and remove them from the count table.
+chimera.uchime(fasta = stability.trim.contigs.good.unique.good.filter.unique.precluster.fasta, count = stability.trim.contigs.good.unique.good.filter.unique.precluster.count_table, dereplicate = t)
+# Remove chimeric sequences from the fasta-file.
+remove.seqs(fasta = stability.trim.contigs.good.unique.good.filter.unique.precluster.fasta, accnos = stability.trim.contigs.good.unique.good.filter.unique.precluster.denovo.uchime.accnos)
+# Make a summary of the contigs.
+summary.seqs(fasta = stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.fasta, count = stability.trim.contigs.good.unique.good.filter.unique.precluster.denovo.uchime.pick.count_table)
+
+                          Start   End     NBases  Ambigs  Polymer NumSeqs
+          Minimum:        1       1002    393     0       3       1
+          2.5%-tile:      1       1002    401     0       4       89773
+          25%-tile:       1       1002    401     0       4       897725
+          Median:         1       1002    421     0       5       1795450
+          75%-tile:       1       1002    426     0       5       2693175
+          97.5%-tile:     1       1002    426     0       6       3501127
+          Maximum:        1       1002    428     0       12      3590899
+          Mean:   1       1002    415     0       4
+          # of unique seqs:       127490
+          total # of seqs:        3590899
+
+# Classify sequences with the SILVA database
+classify.seqs(fasta = stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.fasta, count = stability.trim.contigs.good.unique.good.filter.unique.precluster.denovo.uchime.pick.count_table, reference = silva.nr_v132.align, taxonomy = silva.nr_v132.tax, cutoff = 80)
+# Identify contigs that are classified as chloroplast, mitochondria, archaea, eukaryota or that could not be classified (i.e. classified as 'unknown')
+remove.lineage(fasta = stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.fasta, count = stability.trim.contigs.good.unique.good.filter.unique.precluster.denovo.uchime.pick.count_table, taxonomy = stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.nr_v132.wang.taxonomy, taxon = Chloroplast-Mitochondria-unknown-Archaea-Eukaryota)
+# Make a summary of the contigs.
+summary.seqs(fasta = stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.fasta, count = stability.trim.contigs.good.unique.good.filter.unique.precluster.denovo.uchime.pick.pick.count_table)
+
+                          Start   End     NBases  Ambigs  Polymer NumSeqs
+          Minimum:        1       1002    393     0       3       1
+          2.5%-tile:      1       1002    401     0       4       81909
+          25%-tile:       1       1002    401     0       4       819082
+          Median:         1       1002    421     0       5       1638164
+          75%-tile:       1       1002    426     0       5       2457245
+          97.5%-tile:     1       1002    427     0       6       3194418
+          Maximum:        1       1002    428     0       12      3276326
+          Mean:   1       1002    416     0       4
+          # of unique seqs:       123059
+          total # of seqs:        3276326
+
+# Generate OTUs.
+cluster.split(fasta = stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.fasta, count = stability.trim.contigs.good.unique.good.filter.unique.precluster.denovo.uchime.pick.pick.count_table, taxonomy = stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.nr_v132.wang.pick.taxonomy, splitmethod = classify, taxlevel = 4)
+# Get number of sequences in each OTU per sample.
+make.shared(list = stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.list, count = stability.trim.contigs.good.unique.good.filter.unique.precluster.denovo.uchime.pick.pick.count_table, label = 0.03)
+# Get a taxonomy classification per OTU.
+classify.otu(list = stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.list, count = stability.trim.contigs.good.unique.good.filter.unique.precluster.denovo.uchime.pick.pick.count_table, taxonomy = stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.nr_v132.wang.pick.taxonomy, label = 0.03)
+# Get the representative sequence for every OTU (the most abundant sequence is considerd representative for the OTU).
+get.oturep(list = stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.opti_mcc.list, count = stability.trim.contigs.good.unique.good.filter.unique.precluster.denovo.uchime.pick.pick.count_table, fasta = stability.trim.contigs.good.unique.good.filter.unique.precluster.pick.pick.fasta, method = abundance)
+```
