@@ -19,10 +19,6 @@ The final file structure should be:
 ├── MOTHUR.md
 ├── /Functions
 ├── /Metadata
-    ├── Metadata_FCM.csv
-    ├── Metadata_Raman.csv
-    ├── /FCSfiles
-    └── /Ramanfiles
 ├── /Data
     ├── /FCM
 	    ├── OnSite
